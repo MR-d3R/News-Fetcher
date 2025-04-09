@@ -13,7 +13,20 @@ import (
 )
 
 type Config struct {
-	RedisSt struct {
+	RabbitMQURL string
+	RedisAddr   string
+	QueueName   string
+	ServerPort  string
+	DB          *redis.Client
+}
+
+type YamlConfig struct {
+	Server struct {
+		Address string `yaml:"addr"`
+		Port    string `yaml:"port"`
+	} `yaml:"Server"`
+
+	Redis struct {
 		Address     string `yaml:"addr"`
 		Password    string `yaml:"password"`
 		User        string `yaml:"user"`
@@ -23,12 +36,14 @@ type Config struct {
 		Timeout     int    `yaml:"timeout"`
 	} `yaml:"Redis"`
 
-	LoggerSt struct {
+	RabbitMQ struct {
+		Address   string `yaml:"addr"`
+		QueueName string `yaml:"queue_name"`
+	} `yaml:"Rabbit"`
+
+	Logger struct {
 		Level string `yaml:"level"`
 	} `yaml:"Logger"`
-
-	DB     *redis.Client
-	Logger *logger.ColorfulLogger
 }
 
 var (
@@ -52,15 +67,15 @@ func GetLogger() *logger.ColorfulLogger {
 	return globalLogger
 }
 
-func NewClient(ctx context.Context, cfg Config) (*redis.Client, error) {
+func NewClient(ctx context.Context, cfg YamlConfig) (*redis.Client, error) {
 	db := redis.NewClient(&redis.Options{
-		Addr:        cfg.RedisSt.Address,
-		Password:    cfg.RedisSt.Password,
-		DB:          cfg.RedisSt.DB,
-		Username:    cfg.RedisSt.User,
-		MaxRetries:  cfg.RedisSt.MaxRetries,
-		DialTimeout: time.Duration(cfg.RedisSt.DialTimeout) * time.Second,
-		ReadTimeout: time.Duration(cfg.RedisSt.Timeout) * time.Second,
+		Addr:        cfg.Redis.Address,
+		Password:    cfg.Redis.Password,
+		DB:          cfg.Redis.DB,
+		Username:    cfg.Redis.User,
+		MaxRetries:  cfg.Redis.MaxRetries,
+		DialTimeout: time.Duration(cfg.Redis.DialTimeout) * time.Second,
+		ReadTimeout: time.Duration(cfg.Redis.Timeout) * time.Second,
 	})
 
 	if err := db.Ping(ctx).Err(); err != nil {
@@ -77,13 +92,13 @@ func initializeConfig(logPrefix string) (*Config, error) {
 		return nil, fmt.Errorf("failed to find config.yaml in current path: %v", err)
 	}
 
-	var cfg Config
-	err = yaml.Unmarshal(data, &cfg)
+	var ymlCfg YamlConfig
+	err = yaml.Unmarshal(data, &ymlCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config file: %v", err)
 	}
 
-	loggerInstance, err := logger.NewColorfulLogger(logPrefix, cfg.LoggerSt.Level)
+	loggerInstance, err := logger.NewColorfulLogger(logPrefix, ymlCfg.Logger.Level)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup logger: %v", err)
 	}
@@ -91,12 +106,17 @@ func initializeConfig(logPrefix string) (*Config, error) {
 	// Сохраняем логгер как глобальный
 	globalLogger = loggerInstance
 
-	db, err := NewClient(context.Background(), cfg)
-	if err != nil {
-		panic(err)
-	}
+	// db, err := NewClient(context.Background(), ymlCfg)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	cfg.DB = db
+	var cfg Config
+	cfg.RabbitMQURL = ymlCfg.RabbitMQ.Address
+	cfg.QueueName = ymlCfg.RabbitMQ.QueueName
+	cfg.RedisAddr = ymlCfg.Redis.Address
+	cfg.ServerPort = ymlCfg.Server.Port
+
 	return &cfg, nil
 }
 
