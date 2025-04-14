@@ -16,9 +16,9 @@ import (
 const (
 	serviceURL      = "http://localhost:8080" // Измените на URL вашего сервиса
 	numRequests     = 1000                    // Общее количество запросов
-	maxConcurrent   = 10                      // Максимальное количество параллельных запросов
-	requestTimeout  = 10 * time.Second        // Таймаут для каждого запроса
-	statusInterval  = 10 * time.Second        // Интервал между проверками статуса
+	maxConcurrent   = 50                      // Максимальное количество параллельных запросов
+	requestTimeout  = 5 * time.Second         // Таймаут для каждого запроса
+	statusInterval  = 5 * time.Second         // Интервал между проверками статуса
 	maxStatusChecks = 30                      // Максимальное количество проверок статуса
 )
 

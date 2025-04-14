@@ -13,11 +13,13 @@ import (
 )
 
 type Config struct {
-	RabbitMQURL string
-	RedisAddr   string
-	QueueName   string
-	ServerPort  string
-	DB          *redis.Client
+	RabbitMQURL  string
+	PostgresAddr string
+	RedisAddr    string
+	QueueName    string
+	ServerPort   string
+	NewsAPIKey   string
+	DB           *redis.Client
 }
 
 type YamlConfig struct {
@@ -25,6 +27,17 @@ type YamlConfig struct {
 		Address string `yaml:"addr"`
 		Port    string `yaml:"port"`
 	} `yaml:"Server"`
+
+	RabbitMQ struct {
+		Address   string `yaml:"addr"`
+		QueueName string `yaml:"queue_name"`
+	} `yaml:"Rabbit"`
+
+	Postgres struct {
+		Address string `yaml:"addr"`
+		User    string `yaml:"user"`
+		DBName  string `yaml:"db_name"`
+	} `yaml:"Postgres"`
 
 	Redis struct {
 		Address     string `yaml:"addr"`
@@ -36,10 +49,7 @@ type YamlConfig struct {
 		Timeout     int    `yaml:"timeout"`
 	} `yaml:"Redis"`
 
-	RabbitMQ struct {
-		Address   string `yaml:"addr"`
-		QueueName string `yaml:"queue_name"`
-	} `yaml:"Rabbit"`
+	NewsAPIKey string `yaml:"NewsAPIKey"`
 
 	Logger struct {
 		Level string `yaml:"level"`
@@ -114,8 +124,10 @@ func initializeConfig(logPrefix string) (*Config, error) {
 	var cfg Config
 	cfg.RabbitMQURL = ymlCfg.RabbitMQ.Address
 	cfg.QueueName = ymlCfg.RabbitMQ.QueueName
+	cfg.PostgresAddr = ymlCfg.Postgres.Address
 	cfg.RedisAddr = ymlCfg.Redis.Address
 	cfg.ServerPort = ymlCfg.Server.Port
+	cfg.NewsAPIKey = ymlCfg.NewsAPIKey
 
 	return &cfg, nil
 }

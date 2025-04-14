@@ -9,9 +9,3 @@ type AppHandlers struct {
 	rabbitChannel *amqp.Channel
 	redisClient   *redis.Client
 }
-
-type Task struct {
-	ID     string `json:"id"`
-	URL    string `json:"url"`
-	Status string `json:"status"`
-}

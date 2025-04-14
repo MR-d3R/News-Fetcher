@@ -6,13 +6,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 type ColorfulLogger struct {
 	infoLogger  *log.Logger
 	warnLogger  *log.Logger
 	errorLogger *log.Logger
+	panicLogger *log.Logger
 	debugLogger *log.Logger
 	logLevel    int
 }
@@ -22,6 +22,7 @@ const (
 	INFO
 	WARN
 	ERROR
+	PANIC
 )
 
 const (
@@ -30,6 +31,7 @@ const (
 	colorGreen  = "\033[32m"
 	colorYellow = "\033[33m"
 	colorBlue   = "\033[34m"
+	colorPurple = "\033[35m"
 )
 
 // Cоздает новый экземпляр логгера
@@ -60,12 +62,15 @@ func NewColorfulLogger(logPrefix string, logLevelStr string) (*ColorfulLogger, e
 		logLevel = WARN
 	case "error":
 		logLevel = ERROR
+	case "panic":
+		logLevel = PANIC
 	}
 
 	return &ColorfulLogger{
 		infoLogger:  log.New(authLogFile, fmt.Sprintf("%s[INFO]%s ", colorGreen, colorReset), log.Ldate|log.Ltime),
 		warnLogger:  log.New(authLogFile, fmt.Sprintf("%s[WARN]%s ", colorYellow, colorReset), log.Ldate|log.Ltime),
 		errorLogger: log.New(authLogFile, fmt.Sprintf("%s[ERROR]%s ", colorRed, colorReset), log.Ldate|log.Ltime),
+		panicLogger: log.New(authLogFile, fmt.Sprintf("%s[PANIC]%s ", colorBlue, colorReset), log.Ldate|log.Ltime),
 		debugLogger: log.New(authLogFile, fmt.Sprintf("%s[DEBUG]%s ", colorBlue, colorReset), log.Ldate|log.Ltime),
 		logLevel:    logLevel,
 	}, nil
@@ -99,32 +104,10 @@ func (l *ColorfulLogger) Error(format string, v ...interface{}) {
 	}
 }
 
-// LogRequest логирует информацию о HTTP запросе
-func (l *ColorfulLogger) LogRequest(method, path, ip string, status int, duration time.Duration) {
-	var statusColor string
-
-	if status >= 200 && status < 300 {
-		statusColor = colorGreen
-	} else if status >= 300 && status < 400 {
-		statusColor = colorBlue
-	} else if status >= 400 && status < 500 {
-		statusColor = colorYellow
-	} else {
-		statusColor = colorRed
-	}
-
-	logMessage := fmt.Sprintf("%s %s %s%d%s %s %s",
-		method,
-		path,
-		statusColor,
-		status,
-		colorReset,
-		duration.String(),
-		ip)
-
-	if status >= 400 {
-		l.Warn(logMessage)
-	} else {
-		l.Info(logMessage)
+// Panic завершает работу приложения
+func (l *ColorfulLogger) Panic(format string, v ...interface{}) {
+	if l.logLevel <= PANIC {
+		l.errorLogger.Printf(format, v...)
+		panic(v)
 	}
 }

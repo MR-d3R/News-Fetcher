@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
-	"taskrunner/internal/models"
 	"taskrunner/logger"
 
 	"github.com/gin-gonic/gin"
@@ -13,6 +12,11 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 )
+
+type Task struct {
+	ID        string `json:"id"`
+	SourceURL string `json:"source_url"`
+}
 
 // TaskHandler содержит обработчики для задач
 type TaskHandler struct {
@@ -54,7 +58,7 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	}
 
 	taskID := uuid.New().String()
-	task := models.Task{ID: taskID, URL: input.URL}
+	task := Task{ID: taskID, SourceURL: input.URL}
 	body, err := json.Marshal(task)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to serialize task"})
@@ -62,10 +66,10 @@ func (h *TaskHandler) CreateTask(c *gin.Context) {
 	}
 
 	err = h.RabbitChannel.Publish(
-		"",      // exchange
-		"tasks", // routing key
-		false,   // mandatory
-		false,   // immediate
+		"",              // exchange
+		"content_fetch", // routing key
+		false,           // mandatory
+		false,           // immediate
 		amqp.Publishing{
 			ContentType: "application/json",
 			Body:        body,
