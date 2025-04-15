@@ -1,11 +1,12 @@
 package models
 
 import (
-	amqp "github.com/rabbitmq/amqp091-go"
-	"github.com/redis/go-redis/v9"
+	"time"
 )
 
-type AppHandlers struct {
-	rabbitChannel *amqp.Channel
-	redisClient   *redis.Client
+type FetchTask struct {
+	ID        string    `json:"id"`
+	Status    string    `json:"status"`
+	SourceURL string    `json:"source_url"`
+	CreatedAt time.Time `json:"created_at"`
 }

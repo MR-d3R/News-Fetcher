@@ -11,7 +11,7 @@ import (
 )
 
 type Article struct {
-	ID          string    `json:"id"`
+	ID          int       `json:"id"`
 	Author      string    `json:"author"`
 	Title       string    `json:"title"`
 	Description string    `json:"description"`
@@ -52,8 +52,8 @@ func (r *ArticleRepository) GetArticleByID(ctx context.Context, id int) (*Articl
 	// запрашиваем из PostgreSQL
 	var article Article
 	err = r.db.QueryRow(ctx,
-		"SELECT id, title, content, source, category, created FROM articles WHERE id = $1",
-		id).Scan(&article.ID, &article.Title, &article.Content, &article.URL, &article.Category, &article.PublishedAt)
+		"SELECT id, title, description, content, url, image_url, category, publishedAt FROM articles WHERE id = $1",
+		id).Scan(&article.ID, &article.Title, &article.Description, &article.Content, &article.URL, &article.ImageURL, &article.Category, &article.PublishedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get article: %w", err)
@@ -68,17 +68,19 @@ func (r *ArticleRepository) GetArticleByID(ctx context.Context, id int) (*Articl
 
 // SaveArticle сохраняет статью в БД и обновляет кэш
 func (r *ArticleRepository) SaveArticle(ctx context.Context, article *Article) error {
-	// Сначала сохраняем в PostgreSQL
+	var id int
 	err := r.db.QueryRow(ctx,
-		"INSERT INTO articles(title, content, source, category, created) VALUES($1, $2, $3, $4, $5) RETURNING id",
-		article.Title, article.Content, article.URL, article.Category, article.PublishedAt).Scan(&article.ID)
+		"INSERT INTO articles(title, description, content, url, image_url, category, publishedAt) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+		article.Title, article.Description, article.Content, article.URL, article.ImageURL, article.Category, article.PublishedAt).Scan(&id)
 
 	if err != nil {
 		return fmt.Errorf("failed to save article: %w", err)
 	}
 
+	article.ID = id
+
 	// Обновляем кэш
-	cacheKey := fmt.Sprintf("article:%s", article.ID)
+	cacheKey := fmt.Sprintf("article:%d", article.ID)
 	articleJSON, _ := json.Marshal(article)
 	r.redis.Set(ctx, cacheKey, articleJSON, time.Minute*15)
 
@@ -103,7 +105,7 @@ func (r *ArticleRepository) GetRecentArticles(ctx context.Context, limit int) ([
 
 	// Если не нашли в кэше, запрашиваем из PostgreSQL
 	rows, err := r.db.Query(ctx,
-		"SELECT id, title, content, source, category, created FROM articles ORDER BY created DESC LIMIT $1",
+		"SELECT id, title, description, content, url, image_url, category, publishedAt FROM articles ORDER BY publishedAt DESC LIMIT $1",
 		limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get recent articles: %w", err)
@@ -113,7 +115,7 @@ func (r *ArticleRepository) GetRecentArticles(ctx context.Context, limit int) ([
 	var articles []*Article
 	for rows.Next() {
 		var article Article
-		if err := rows.Scan(&article.ID, &article.Title, &article.Content, &article.URL, &article.Category, &article.PublishedAt); err != nil {
+		if err := rows.Scan(&article.ID, &article.Title, &article.Description, &article.Content, &article.URL, &article.ImageURL, &article.Category, &article.PublishedAt); err != nil {
 			return nil, err
 		}
 		articles = append(articles, &article)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -9,11 +10,9 @@ import (
 	"strings"
 	"taskrunner/internal/config"
 	"taskrunner/internal/repository"
-	"time"
 
 	"github.com/jackc/pgx/v4/pgxpool"
 	amqp "github.com/rabbitmq/amqp091-go"
-	"github.com/redis/go-redis/v9"
 )
 
 type ProcessTask struct {
@@ -41,9 +40,15 @@ func NewCategory() *Category {
 	}
 }
 
-func processNewsAPI(rawContent string) ([]repository.Article, error) {
+func processNewsAPI(rawContent *string) ([]repository.Article, error) {
+	// Декодирование из base64
+	decodedData, err := base64.StdEncoding.DecodeString(*rawContent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64 content: %v", err)
+	}
+
 	var response NewsAPIResp
-	err := json.Unmarshal([]byte(rawContent), &response)
+	err = json.Unmarshal(decodedData, &response)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse json from news api: %v", err)
 	}
@@ -54,23 +59,19 @@ func processNewsAPI(rawContent string) ([]repository.Article, error) {
 		return nil, fmt.Errorf("news api status not ok: %s", response.Status)
 	}
 }
-
-func processContent(ctx context.Context, repo *repository.ArticleRepository, ch *amqp.Channel, task ProcessTask) error {
+func processContent(ctx context.Context, repo *repository.ArticleRepository, task ProcessTask) error {
 	sourceType := determineSourceType(task.SourceURL)
 
-	var extractedTitle, extractedContent, determinedCategory string
+	var articles []repository.Article
+	categories := NewCategory()
 
 	switch sourceType {
 	case "api":
 		var err error
-		articles, err := processNewsAPI(task.ContentRaw)
+		articles, err = processNewsAPI(&task.ContentRaw)
 		if err != nil {
 			return fmt.Errorf("failed to process news api: %v", err)
 		}
-		for _, article := range articles {
-			fmt.Printf("\nArticle\nID: %s\nAuthor: %s\nTitle: %s\nDescription: %s\nContent: %s\nURL: %s\nImageURL: %s\nCategory: %s\nPublishedAt: %s", article.ID, article.Author, article.Title, article.Description, article.Content, article.URL, article.ImageURL, article.Category, article.PublishedAt)
-		}
-		return nil
 	case "rss":
 		var feed struct {
 			Title   string `xml:"channel>item>title"`
@@ -80,41 +81,19 @@ func processContent(ctx context.Context, repo *repository.ArticleRepository, ch 
 			return err
 		}
 
-		extractedTitle = feed.Title
-		extractedContent = feed.Content
 	}
 
-	categories := NewCategory()
-	determinedCategory = categorizeContent(extractedContent, categories)
+	for _, article := range articles {
+		determinedCategory := categorizeContent(article.Description, categories)
+		article.Category = determinedCategory
 
-	// В конце сохраняем обработанную статью
-	article := &repository.Article{
-		Title:       extractedTitle,
-		Content:     extractedContent,
-		URL:         task.SourceURL,
-		Category:    determinedCategory,
-		PublishedAt: time.Now(),
+		// Сохраняем в БД и кэш
+		if err := repo.SaveArticle(ctx, &article); err != nil {
+			return err
+		}
 	}
 
-	// Сохраняем в БД и кэш
-	if err := repo.SaveArticle(ctx, article); err != nil {
-		return err
-	}
-
-	indexTask := map[string]interface{}{
-		"article_id": article.ID,
-	}
-	taskJSON, _ := json.Marshal(indexTask)
-
-	return ch.Publish(
-		"",             // exchange
-		"index_update", // routing key
-		false,          // mandatory
-		false,          // immediate
-		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        taskJSON,
-		})
+	return nil
 }
 
 // Определение типа источника по ссылке
@@ -159,7 +138,7 @@ func containsAny(s string, words []string) bool {
 
 func main() {
 	ctx := context.Background()
-	cfg, err := config.InitConfig("CONSUMER")
+	cfg, err := config.InitConfig("PROCESS CONTENT CONSUMER")
 	if err != nil {
 		panic(err)
 	}
@@ -191,14 +170,14 @@ func main() {
 		logger.Panic("Failed to declare a queue: %v", err)
 	}
 
-	logger.Info("Queue '%s' declared: %+v", cfg.QueueName, queue)
+	logger.Info("Queue '%s' declared: %+v", "content_process", queue)
 
 	// Счетчик количества сообщений в очереди
-	queueInfo, err := ch.QueueInspect(cfg.QueueName)
+	queueInfo, err := ch.QueueInspect("content_process")
 	if err != nil {
 		logger.Panic("Failed to inspect queue: %v", err)
 	}
-	logger.Info("Queue '%s' has %d messages waiting", cfg.QueueName, queueInfo.Messages)
+	logger.Info("Queue '%s' has %d messages waiting", "content_process", queueInfo.Messages)
 
 	// Настройка QoS (Quality of Service)
 	err = ch.Qos(
@@ -222,26 +201,26 @@ func main() {
 	if err != nil {
 		logger.Panic("Failed to register a consumer: %v", err)
 	}
-	logger.Info("Successfully registered consumer for queue '%s'", cfg.QueueName)
-
-	// Подключение к Redis
-	rdb := redis.NewClient(&redis.Options{
-		Addr: cfg.RedisAddr,
-	})
-	defer rdb.Close()
+	logger.Info("Successfully registered consumer for queue '%s'", "content_process")
 
 	// Проверка соединения с Redis
-	pong, err := rdb.Ping(ctx).Result()
+	pong, err := cfg.DB.Ping(ctx).Result()
 	if err != nil {
 		logger.Panic("Failed to connect to Redis: %v", err)
 	}
 	logger.Info("Redis connection successful: %s", pong)
 
-	pool, err := pgxpool.Connect(context.Background(), cfg.PostgresAddr)
+	pool, err := pgxpool.Connect(ctx, cfg.PostgresAddr)
 	if err != nil {
 		logger.Panic("Failed to connect to Postgres")
 	}
-	repo := repository.NewArticleRepository(pool, rdb)
+	repo := repository.NewArticleRepository(pool, cfg.DB)
+	_, err = pool.Exec(ctx, config.Schema)
+	if err != nil {
+		logger.Panic("Failed to initialize tables: %v", err)
+	} else {
+		logger.Info("Tables initialized successfully")
+	}
 
 	// Обработка сообщений
 	forever := make(chan bool)
@@ -260,7 +239,7 @@ func main() {
 
 			logger.Info("Processing task %s: %s", task.ID, task.SourceURL)
 
-			err := processContent(context.Background(), repo, ch, task)
+			err := processContent(context.Background(), repo, task)
 			if err != nil {
 				logger.Error("error processing task: %v", err)
 				d.Nack(false, true) // отправляем обратно в очередь

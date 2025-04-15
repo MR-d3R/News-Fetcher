@@ -15,11 +15,9 @@ import (
 type Config struct {
 	RabbitMQURL  string
 	PostgresAddr string
-	RedisAddr    string
-	QueueName    string
+	DB           *redis.Client
 	ServerPort   string
 	NewsAPIKey   string
-	DB           *redis.Client
 }
 
 type YamlConfig struct {
@@ -29,14 +27,14 @@ type YamlConfig struct {
 	} `yaml:"Server"`
 
 	RabbitMQ struct {
-		Address   string `yaml:"addr"`
-		QueueName string `yaml:"queue_name"`
+		Address string `yaml:"addr"`
 	} `yaml:"Rabbit"`
 
 	Postgres struct {
-		Address string `yaml:"addr"`
-		User    string `yaml:"user"`
-		DBName  string `yaml:"db_name"`
+		Address  string `yaml:"addr"`
+		User     string `yaml:"user"`
+		Password string `yaml:"password"`
+		DBName   string `yaml:"db_name"`
 	} `yaml:"Postgres"`
 
 	Redis struct {
@@ -116,16 +114,17 @@ func initializeConfig(logPrefix string) (*Config, error) {
 	// Сохраняем логгер как глобальный
 	globalLogger = loggerInstance
 
-	// db, err := NewClient(context.Background(), ymlCfg)
-	// if err != nil {
-	// 	panic(err)
-	// }
+	db, err := NewClient(context.Background(), ymlCfg)
+	if err != nil {
+		panic(err)
+	}
+	// postgres://jack:secret@pg.example.com:5432/mydb?sslmode=verify-ca&pool_max_conns=10
+	postgresUrl := fmt.Sprintf("postgres://%s:%s@%s/%s", ymlCfg.Postgres.User, ymlCfg.Postgres.Password, ymlCfg.Postgres.Address, ymlCfg.Postgres.DBName)
 
 	var cfg Config
 	cfg.RabbitMQURL = ymlCfg.RabbitMQ.Address
-	cfg.QueueName = ymlCfg.RabbitMQ.QueueName
-	cfg.PostgresAddr = ymlCfg.Postgres.Address
-	cfg.RedisAddr = ymlCfg.Redis.Address
+	cfg.PostgresAddr = postgresUrl
+	cfg.DB = db
 	cfg.ServerPort = ymlCfg.Server.Port
 	cfg.NewsAPIKey = ymlCfg.NewsAPIKey
 
