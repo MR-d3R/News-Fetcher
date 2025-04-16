@@ -18,7 +18,6 @@ func fetchContent(ch *amqp.Channel, logger *logger.ColorfulLogger, task models.F
 		return fmt.Errorf("error creating request: %v", err)
 	}
 
-	// После получения создаем задачу на обработку
 	processTask := map[string]interface{}{
 		"id":          task.ID,
 		"content_raw": body,
@@ -27,7 +26,6 @@ func fetchContent(ch *amqp.Channel, logger *logger.ColorfulLogger, task models.F
 
 	taskJSON, _ := json.Marshal(processTask)
 
-	// Отправляем задачу в очередь обработки
 	return rabbitmq.PublishMessage(ch, "content_process", taskJSON)
 }
 
@@ -99,7 +97,6 @@ func main() {
 	logger.Info("Successfully registered consumer for queue '%s'", "content_fetch")
 
 	newsAPIKey := cfg.NewsAPIKey
-	// Обработка сообщений
 	forever := make(chan bool)
 	go func() {
 		logger.Info("Starting message processing goroutine...")
@@ -110,13 +107,12 @@ func main() {
 			var task models.FetchTask
 			if err := json.Unmarshal(d.Body, &task); err != nil {
 				logger.Error("Error decoding task: %v", err)
-				d.Nack(false, true) // Подтверждаем получение, даже если не смогли обработать
+				d.Nack(false, true) // Подтверждаем получение и отправляем на переобработку
 				continue
 			}
 
 			logger.Info("Processing task URL: %s", task.SourceURL)
 
-			// status := checkURLStatus(task.URL)
 			err := fetchContent(ch, logger, task, newsAPIKey)
 			if err != nil {
 				logger.Error("error processing task: %v", err)

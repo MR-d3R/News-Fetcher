@@ -45,6 +45,10 @@ func processNewsAPI(rawContent *string) ([]repository.Article, error) {
 		return nil, fmt.Errorf("failed to decode base64 content: %v", err)
 	}
 
+	if strings.HasPrefix(string(decodedData), "<") || strings.HasPrefix(string(decodedData), "<html") || strings.HasPrefix(string(decodedData), "<!DOCTYPE") {
+		return nil, fmt.Errorf("received HTML instead of JSON. API call likely failed with a 404 error. Check your API URL and key")
+	}
+
 	var response NewsAPIResp
 	err = json.Unmarshal(decodedData, &response)
 	if err != nil {
@@ -166,7 +170,6 @@ func main() {
 	}
 	defer ch.Close()
 
-	// Проверяем, существует ли очередь
 	queue, err := ch.QueueDeclare(
 		"content_process", // name
 		true,              // wait, newse
@@ -188,7 +191,6 @@ func main() {
 	}
 	logger.Info("Queue '%s' has %d messages waiting", "content_process", queueInfo.Messages)
 
-	// Настройка QoS (Quality of Service)
 	err = ch.Qos(
 		1,     // prefetch count
 		0,     // prefetch size
@@ -231,7 +233,6 @@ func main() {
 		logger.Info("Tables initialized successfully")
 	}
 
-	// Обработка сообщений
 	forever := make(chan bool)
 	go func() {
 		logger.Info("Starting message processing goroutine...")
@@ -242,7 +243,7 @@ func main() {
 			var task ProcessTask
 			if err := json.Unmarshal(d.Body, &task); err != nil {
 				logger.Error("Error decoding task: %v", err)
-				d.Nack(false, true)
+				d.Nack(false, false)
 				continue
 			}
 
@@ -251,7 +252,7 @@ func main() {
 			err := processContent(context.Background(), repo, task)
 			if err != nil {
 				logger.Error("error processing task: %v", err)
-				d.Nack(false, true) // отправляем обратно в очередь
+				d.Nack(false, false)
 			} else {
 				d.Ack(false)
 				logger.Info("Task %s completed and acknowledged", task.ID)

@@ -1,0 +1,30 @@
+# Используем официальный образ Go как базовый
+FROM golang:1.23-alpine AS builder
+
+# Установка необходимых зависимостей
+RUN apk add --no-cache git
+
+# Устанавливаем рабочую директорию внутри контейнера
+WORKDIR /app
+
+# Копируем go.mod и go.sum для загрузки зависимостей
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Копируем исходный код
+COPY . .
+
+# Компилируем приложение для Fetch Consumer
+RUN CGO_ENABLED=0 GOOS=linux go build -o fetch-consumer ./cmd/content_fetcher_cns/main.go
+
+# Используем легковесный образ для запуска
+FROM alpine:latest
+
+WORKDIR /app
+
+# Копируем скомпилированное приложение из предыдущего этапа
+COPY --from=builder /app/fetch-consumer .
+COPY --from=builder /app/config.yaml .
+
+# Определяем команду запуска
+CMD ["./fetch-consumer"]

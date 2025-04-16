@@ -57,10 +57,8 @@ func (ah *ArticleHandler) FetchNewArticles(c *gin.Context) {
 		return
 	}
 
-	// Create task with unique ID
 	taskID := uuid.New().String()
 	now := time.Now()
-
 	task := models.FetchTask{
 		ID:        taskID,
 		Status:    "queued",

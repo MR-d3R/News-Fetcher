@@ -1,10 +1,110 @@
 version: "3.8"
 
 services:
-  db:
+  # База данных PostgreSQL
+  postgres:
     image: postgres:16
     restart: always
     environment:
-      POSTGRES_PASSWORD: Passw
+      POSTGRES_USER: $PG_USER
+      POSTGRES_PASSWORD: $PG_PASSWORD
+      POSTGRES_DB: $PG_DB
     ports:
-      - 5432:5432
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis для кэширования
+  redis:
+    image: redis:alpine
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # RabbitMQ для очередей сообщений
+  rabbitmq:
+    image: rabbitmq:4.0-management
+    restart: always
+    ports:
+      - "5672:5672" # AMQP порт
+      - "15672:15672" # Порт управления
+    environment:
+      RABBITMQ_DEFAULT_USER: $RABBITMQ_USER
+      RABBITMQ_DEFAULT_PASS: $RABBITMQ_PASS
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # API Producer сервис
+  api-producer:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.producer
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./logs/:/app/logs/
+      # По необходимости можете создать отдельный файл для этого сервиса
+      # - ./configs/producer/config.yaml:/app/config.yaml
+
+  # Fetch Consumer сервис
+  fetch-consumer:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.fetch
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./logs/:/app/logs/
+      # Или отдельный файл:
+      # - ./configs/fetch/config.yaml:/app/config.yaml
+
+  # Process Consumer сервис
+  process-consumer:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.process
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./logs/:/app/logs/
+      # Или отдельный файл:
+      # - ./configs/process/config.yaml:/app/config.yaml
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:

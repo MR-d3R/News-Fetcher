@@ -14,10 +14,7 @@ import (
 )
 
 func main() {
-	// Create context
 	ctx := context.Background()
-
-	// Initialize configuration
 	cfg, err := config.InitConfig("NEWS API PRODUCER")
 	if err != nil {
 		log.Fatalf("Failed to initialize configuration: %v", err)
@@ -43,8 +40,7 @@ func main() {
 	logger.Info("Redis connection successful: %s", pong)
 	defer cfg.DB.Close()
 
-	// Create handler
-	// taskHandler := handlers.NewTaskHandler(ctx, ch, cfg.DB, logger)
+	// Article handler initializtion
 	pool, err := pgxpool.Connect(ctx, cfg.PostgresAddr)
 	if err != nil {
 		logger.Panic("Failed to connect to Postgres")
@@ -58,10 +54,9 @@ func main() {
 	}
 	articleHandler := handlers.NewArticleHandler(ctx, ch, repo, logger)
 
-	// Configure Gin router
 	router := gin.Default()
 
-	// Add CORS middleware if needed
+	// Add CORS middleware
 	router.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
@@ -75,7 +70,6 @@ func main() {
 		c.Next()
 	})
 
-	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":  "ok",
@@ -84,7 +78,6 @@ func main() {
 	})
 
 	// Register task routes
-	// taskHandler.RegisterTaskRoutes(router)
 	articleHandler.RegisterArticleRoutes(router)
 
 	// Start HTTP server

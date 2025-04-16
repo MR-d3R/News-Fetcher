@@ -118,12 +118,10 @@ func initializeConfig(logPrefix string) (*Config, error) {
 	if err != nil {
 		panic(err)
 	}
-	// postgres://jack:secret@pg.example.com:5432/mydb?sslmode=verify-ca&pool_max_conns=10
-	postgresUrl := fmt.Sprintf("postgres://%s:%s@%s/%s", ymlCfg.Postgres.User, ymlCfg.Postgres.Password, ymlCfg.Postgres.Address, ymlCfg.Postgres.DBName)
 
 	var cfg Config
 	cfg.RabbitMQURL = ymlCfg.RabbitMQ.Address
-	cfg.PostgresAddr = postgresUrl
+	cfg.PostgresAddr = ymlCfg.Postgres.Address
 	cfg.DB = db
 	cfg.ServerPort = ymlCfg.Server.Port
 	cfg.NewsAPIKey = ymlCfg.NewsAPIKey

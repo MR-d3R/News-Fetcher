@@ -42,7 +42,7 @@ func NewColorfulLogger(logPrefix string, logLevelStr string) (*ColorfulLogger, e
 	}
 
 	logFileName := fmt.Sprintf("%s.log", logPrefix)
-	authLogFile, err := os.OpenFile(
+	LogFile, err := os.OpenFile(
 		filepath.Join("logs", logFileName),
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND,
 		0666,
@@ -67,11 +67,11 @@ func NewColorfulLogger(logPrefix string, logLevelStr string) (*ColorfulLogger, e
 	}
 
 	return &ColorfulLogger{
-		infoLogger:  log.New(authLogFile, fmt.Sprintf("%s[INFO]%s ", colorGreen, colorReset), log.Ldate|log.Ltime),
-		warnLogger:  log.New(authLogFile, fmt.Sprintf("%s[WARN]%s ", colorYellow, colorReset), log.Ldate|log.Ltime),
-		errorLogger: log.New(authLogFile, fmt.Sprintf("%s[ERROR]%s ", colorRed, colorReset), log.Ldate|log.Ltime),
-		panicLogger: log.New(authLogFile, fmt.Sprintf("%s[PANIC]%s ", colorBlue, colorReset), log.Ldate|log.Ltime),
-		debugLogger: log.New(authLogFile, fmt.Sprintf("%s[DEBUG]%s ", colorBlue, colorReset), log.Ldate|log.Ltime),
+		infoLogger:  log.New(LogFile, fmt.Sprintf("%s[INFO]%s ", colorGreen, colorReset), log.Ldate|log.Ltime),
+		warnLogger:  log.New(LogFile, fmt.Sprintf("%s[WARN]%s ", colorYellow, colorReset), log.Ldate|log.Ltime),
+		errorLogger: log.New(LogFile, fmt.Sprintf("%s[ERROR]%s ", colorRed, colorReset), log.Ldate|log.Ltime),
+		panicLogger: log.New(LogFile, fmt.Sprintf("%s[PANIC]%s ", colorBlue, colorReset), log.Ldate|log.Ltime),
+		debugLogger: log.New(LogFile, fmt.Sprintf("%s[DEBUG]%s ", colorPurple, colorReset), log.Ldate|log.Ltime),
 		logLevel:    logLevel,
 	}, nil
 }
