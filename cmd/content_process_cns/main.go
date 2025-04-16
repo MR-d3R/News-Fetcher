@@ -233,7 +233,7 @@ func main() {
 			var task ProcessTask
 			if err := json.Unmarshal(d.Body, &task); err != nil {
 				logger.Error("Error decoding task: %v", err)
-				d.Nack(false, false)
+				d.Nack(false, true)
 				continue
 			}
 
@@ -245,11 +245,8 @@ func main() {
 				d.Nack(false, true) // отправляем обратно в очередь
 			} else {
 				d.Ack(false)
-				logger.Debug("info from URL %s successfully fetched", task.ID)
+				logger.Info("Task %s completed and acknowledged", task.ID)
 			}
-
-			d.Ack(false)
-			logger.Info("Task %s completed and acknowledged", task.ID)
 		}
 
 		logger.Info("Message channel closed, exiting goroutine")

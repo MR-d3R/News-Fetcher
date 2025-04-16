@@ -110,7 +110,7 @@ func main() {
 			var task models.FetchTask
 			if err := json.Unmarshal(d.Body, &task); err != nil {
 				logger.Error("Error decoding task: %v", err)
-				d.Nack(false, false) // Подтверждаем получение, даже если не смогли обработать
+				d.Nack(false, true) // Подтверждаем получение, даже если не смогли обработать
 				continue
 			}
 
@@ -122,13 +122,10 @@ func main() {
 				logger.Error("error processing task: %v", err)
 				d.Nack(false, true) // отправляем обратно в очередь
 			} else {
-				d.Ack(false) // подтверждаем выполнение
-				logger.Debug("task %s acknowledged", task.ID)
+				d.Ack(false)
+				logger.Info("Task %s completed and acknowledged", task.ID)
 			}
 
-			// Подтверждаем обработку сообщения
-			d.Ack(false)
-			logger.Info("Task %s completed and acknowledged", task.ID)
 		}
 
 		logger.Info("Message channel closed, exiting goroutine")
