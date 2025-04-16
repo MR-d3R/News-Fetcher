@@ -52,8 +52,8 @@ func (r *ArticleRepository) GetArticleByID(ctx context.Context, id int) (*Articl
 	// запрашиваем из PostgreSQL
 	var article Article
 	err = r.db.QueryRow(ctx,
-		"SELECT id, title, description, content, url, image_url, category, publishedAt FROM articles WHERE id = $1",
-		id).Scan(&article.ID, &article.Title, &article.Description, &article.Content, &article.URL, &article.ImageURL, &article.Category, &article.PublishedAt)
+		"SELECT id, author, title, description, content, url, image_url, category, publishedAt FROM articles WHERE id = $1",
+		id).Scan(&article.ID, &article.Author, &article.Title, &article.Description, &article.Content, &article.URL, &article.ImageURL, &article.Category, &article.PublishedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get article: %w", err)
@@ -70,8 +70,8 @@ func (r *ArticleRepository) GetArticleByID(ctx context.Context, id int) (*Articl
 func (r *ArticleRepository) SaveArticle(ctx context.Context, article *Article) error {
 	var id int
 	err := r.db.QueryRow(ctx,
-		"INSERT INTO articles(title, description, content, url, image_url, category, publishedAt) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-		article.Title, article.Description, article.Content, article.URL, article.ImageURL, article.Category, article.PublishedAt).Scan(&id)
+		"INSERT INTO articles(author, title, description, content, url, image_url, category, publishedAt) VALUES($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id",
+		article.Author, article.Title, article.Description, article.Content, article.URL, article.ImageURL, article.Category, article.PublishedAt).Scan(&id)
 
 	if err != nil {
 		return fmt.Errorf("failed to save article: %w", err)
@@ -92,7 +92,6 @@ func (r *ArticleRepository) SaveArticle(ctx context.Context, article *Article) e
 
 // GetRecentArticles получает недавние статьи с использованием кэша
 func (r *ArticleRepository) GetRecentArticles(ctx context.Context, limit int) ([]*Article, error) {
-	// Пробуем получить из кэша
 	cacheKey := "recent:articles"
 	cachedData, err := r.redis.Get(ctx, cacheKey).Result()
 
@@ -103,9 +102,10 @@ func (r *ArticleRepository) GetRecentArticles(ctx context.Context, limit int) ([
 		}
 	}
 
+	// TODO добавить оффсет
 	// Если не нашли в кэше, запрашиваем из PostgreSQL
 	rows, err := r.db.Query(ctx,
-		"SELECT id, title, description, content, url, image_url, category, publishedAt FROM articles ORDER BY publishedAt DESC LIMIT $1",
+		"SELECT id, author, title, description, content, url, image_url, category, publishedAt FROM articles ORDER BY publishedAt DESC LIMIT $1",
 		limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get recent articles: %w", err)
@@ -115,7 +115,7 @@ func (r *ArticleRepository) GetRecentArticles(ctx context.Context, limit int) ([
 	var articles []*Article
 	for rows.Next() {
 		var article Article
-		if err := rows.Scan(&article.ID, &article.Title, &article.Description, &article.Content, &article.URL, &article.ImageURL, &article.Category, &article.PublishedAt); err != nil {
+		if err := rows.Scan(&article.ID, &article.Author, &article.Title, &article.Description, &article.Content, &article.URL, &article.ImageURL, &article.Category, &article.PublishedAt); err != nil {
 			return nil, err
 		}
 		articles = append(articles, &article)

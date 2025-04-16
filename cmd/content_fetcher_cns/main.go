@@ -125,7 +125,6 @@ func main() {
 				d.Ack(false)
 				logger.Info("Task %s completed and acknowledged", task.ID)
 			}
-
 		}
 
 		logger.Info("Message channel closed, exiting goroutine")

@@ -7,7 +7,7 @@ import (
 )
 
 // SetupRabbitMQ establishes connection to RabbitMQ and creates a channel
-func SetupRabbitMQ(rabbitMQURL, queueName string) (*amqp.Connection, *amqp.Channel, error) {
+func SetupRabbitMQ(rabbitMQURL string, queueNames []string) (*amqp.Connection, *amqp.Channel, error) {
 	// Connect to RabbitMQ
 	conn, err := amqp.Dial(rabbitMQURL)
 	if err != nil {
@@ -22,20 +22,23 @@ func SetupRabbitMQ(rabbitMQURL, queueName string) (*amqp.Connection, *amqp.Chann
 	}
 
 	// Ensure main queue exists
-	if queueName != "" {
-		_, err = ch.QueueDeclare(
-			queueName, // name
-			true,      // durable
-			false,     // delete when unused
-			false,     // exclusive
-			false,     // no-wait
-			nil,       // arguments
-		)
-		if err != nil {
-			ch.Close()
-			conn.Close()
-			return nil, nil, fmt.Errorf("failed to declare queue %s: %v", queueName, err)
+	for _, qName := range queueNames {
+		if qName != "" {
+			_, err := ch.QueueDeclare(
+				qName, // name
+				true,  // durable
+				false, // delete when unused
+				false, // exclusive
+				false, // no-wait
+				nil,   // arguments
+			)
+			if err != nil {
+				ch.Close()
+				conn.Close()
+				return nil, nil, fmt.Errorf("failed to declare queue %s: %v", qName, err)
+			}
 		}
+
 	}
 
 	return conn, ch, nil

@@ -6,9 +6,11 @@ import (
 
 	"taskrunner/internal/config"
 	"taskrunner/internal/handlers"
+	"taskrunner/internal/repository"
 	"taskrunner/pkg/rabbitmq"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 func main() {
@@ -24,29 +26,14 @@ func main() {
 	logger.Info("Starting News API Producer service")
 
 	// Set up RabbitMQ connection and channel
-	conn, ch, err := rabbitmq.SetupRabbitMQ(cfg.RabbitMQURL, "tasks")
+	queueNames := []string{"tasks", "content_fetch", "content_process"}
+	conn, ch, err := rabbitmq.SetupRabbitMQ(cfg.RabbitMQURL, queueNames)
 	if err != nil {
 		logger.Panic("Failed to setup RabbitMQ: %v", err)
 	}
 	defer conn.Close()
 	defer ch.Close()
-
-	// Declare necessary queues
-	queueNames := []string{"content_fetch", "content_process"}
-	for _, qName := range queueNames {
-		_, err := ch.QueueDeclare(
-			qName, // name
-			true,  // durable
-			false, // delete when unused
-			false, // exclusive
-			false, // no-wait
-			nil,   // arguments
-		)
-		if err != nil {
-			logger.Panic("Failed to declare queue %s: %v", qName, err)
-		}
-		logger.Info("Queue '%s' declared successfully", qName)
-	}
+	logger.Info("All th e queues declared successfully")
 
 	// Test Redis connection
 	pong, err := cfg.DB.Ping(ctx).Result()
@@ -57,7 +44,19 @@ func main() {
 	defer cfg.DB.Close()
 
 	// Create handler
-	taskHandler := handlers.NewTaskHandler(ctx, ch, cfg.DB, logger)
+	// taskHandler := handlers.NewTaskHandler(ctx, ch, cfg.DB, logger)
+	pool, err := pgxpool.Connect(ctx, cfg.PostgresAddr)
+	if err != nil {
+		logger.Panic("Failed to connect to Postgres")
+	}
+	repo := repository.NewArticleRepository(pool, cfg.DB)
+	_, err = pool.Exec(ctx, config.Schema)
+	if err != nil {
+		logger.Panic("Failed to initialize tables: %v", err)
+	} else {
+		logger.Info("Tables initialized successfully")
+	}
+	articleHandler := handlers.NewArticleHandler(ctx, ch, repo, logger)
 
 	// Configure Gin router
 	router := gin.Default()
@@ -85,7 +84,8 @@ func main() {
 	})
 
 	// Register task routes
-	taskHandler.RegisterRoutes(router)
+	// taskHandler.RegisterTaskRoutes(router)
+	articleHandler.RegisterArticleRoutes(router)
 
 	// Start HTTP server
 	logger.Info("Starting producer server on http://localhost%s", cfg.ServerPort)

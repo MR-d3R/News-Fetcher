@@ -185,8 +185,8 @@ func (h *TaskHandler) CancelTask(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "cancelled", "message": "Task cancelled successfully"})
 }
 
-// RegisterRoutes registers all task routes
-func (h *TaskHandler) RegisterRoutes(router *gin.Engine) {
+// RegisterTaskRoutes registers all task routes
+func (h *TaskHandler) RegisterTaskRoutes(router *gin.Engine) {
 	router.POST("/task", h.CreateTask)
 	router.GET("/task/:id", h.GetTaskStatus)
 	router.GET("/tasks", h.GetAllTasks)

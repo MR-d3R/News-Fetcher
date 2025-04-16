@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"regexp"
 	"strings"
 	"taskrunner/internal/config"
 	"taskrunner/internal/repository"
@@ -41,7 +40,6 @@ func NewCategory() *Category {
 }
 
 func processNewsAPI(rawContent *string) ([]repository.Article, error) {
-	// Декодирование из base64
 	decodedData, err := base64.StdEncoding.DecodeString(*rawContent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode base64 content: %v", err)
@@ -63,7 +61,6 @@ func processContent(ctx context.Context, repo *repository.ArticleRepository, tas
 	sourceType := determineSourceType(task.SourceURL)
 
 	var articles []repository.Article
-	categories := NewCategory()
 
 	switch sourceType {
 	case "api":
@@ -80,14 +77,13 @@ func processContent(ctx context.Context, repo *repository.ArticleRepository, tas
 		if err := xml.Unmarshal([]byte(task.ContentRaw), &feed); err != nil {
 			return err
 		}
-
 	}
 
+	categories := NewCategory()
 	for _, article := range articles {
 		determinedCategory := categorizeContent(article.Description, categories)
 		article.Category = determinedCategory
 
-		// Сохраняем в БД и кэш
 		if err := repo.SaveArticle(ctx, &article); err != nil {
 			return err
 		}
@@ -123,16 +119,29 @@ func categorizeContent(content string, categories *Category) string {
 
 	return "general"
 }
+func containsAny(content string, keywords []string) bool {
+	contentWords := strings.Fields(content)
 
-func containsAny(s string, words []string) bool {
-	for _, word := range words {
-		// Создаем шаблон для сопоставления слова как целого слова
-		pattern := `\b` + regexp.QuoteMeta(strings.ToLower(word)) + `\b`
-		matched, _ := regexp.MatchString(pattern, s)
-		if matched {
+	// Создаем карту слов контента для быстрого поиска
+	contentWordsMap := make(map[string]bool)
+	for _, word := range contentWords {
+		cleanedWord := strings.ToLower(word)
+		cleanedWord = strings.Trim(cleanedWord, ".,!?:;\"'()[]{}")
+		contentWordsMap[cleanedWord] = true
+	}
+
+	for _, keyword := range keywords {
+		keywordLower := strings.ToLower(keyword)
+
+		if strings.Contains(content, keywordLower) {
+			return true
+		}
+		// Проверяем также, есть ли слово целиком в нашей карте слов
+		if contentWordsMap[keywordLower] {
 			return true
 		}
 	}
+
 	return false
 }
 
