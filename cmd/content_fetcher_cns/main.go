@@ -6,13 +6,12 @@ import (
 	"taskrunner/internal/config"
 	"taskrunner/internal/models"
 	"taskrunner/internal/utils"
-	"taskrunner/logger"
 	"taskrunner/pkg/rabbitmq"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-func fetchContent(ch *amqp.Channel, logger *logger.ColorfulLogger, task models.FetchTask, newsApiKey string) error {
+func fetchContent(ch *amqp.Channel, task models.FetchTask, newsApiKey string) error {
 	body, err := utils.CreateRequest(task.SourceURL, "GET", "", newsApiKey)
 	if err != nil {
 		return fmt.Errorf("error creating request: %v", err)
@@ -113,7 +112,7 @@ func main() {
 
 			logger.Info("Processing task URL: %s", task.SourceURL)
 
-			err := fetchContent(ch, logger, task, newsAPIKey)
+			err := fetchContent(ch, task, newsAPIKey)
 			if err != nil {
 				logger.Error("error processing task: %v", err)
 				d.Nack(false, true) // отправляем обратно в очередь

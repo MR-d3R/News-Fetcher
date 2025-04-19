@@ -11,15 +11,15 @@ import (
 )
 
 type Article struct {
-	ID          int       `json:"id"`
-	Author      string    `json:"author"`
-	Title       string    `json:"title"`
-	Description string    `json:"description"`
-	Content     string    `json:"content"`
-	URL         string    `json:"url"`
-	ImageURL    string    `json:"urlToImage"`
-	Category    string    `json:"category"`
-	PublishedAt time.Time `json:"publishedAt"`
+	ID          int    `json:"id"`
+	Author      string `json:"author"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Content     string `json:"content"`
+	URL         string `json:"url"`
+	ImageURL    string `json:"urlToImage"`
+	Category    string `json:"category"`
+	PublishedAt string `json:"publishedAt"`
 }
 
 type ArticleRepository struct {
