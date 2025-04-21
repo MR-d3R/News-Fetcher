@@ -1,0 +1,27 @@
+Server:
+  addr: "0.0.0.0"
+  port: ":8080"
+
+Rabbit:
+  addr: "amqp://guest:guest@rabbitmq:5672/"
+
+Postgres:
+  addr: "postgres://postgres:Passw@postgres:5432/newsdb"
+  user: "postgres"
+  password: "postgres"
+  db_name: "newsdb"
+
+Redis:
+  addr: "redis:6379"
+  user:
+  password:
+  db: 0
+  maxRetries: 5
+  dialTimeout: 10
+  timeout: 5
+
+
+Logger:
+  level: "debug"
+
+NewsAPIKey: "<NEWS API KEY>"
